@@ -1,8 +1,30 @@
+#include <iostream>
+#include <fstream>
+#include <string>
 #include <Ray.h>
 #include <Vec.h>
 #include <OrthoCam.h>
 
-void TracePath(Ray& ray) {
+Vec* pathTracing(OrthoCam camera, int width, int height, int numSamples, Vec background_color, double ambient_intensity){
+    //The result of the PT should be saved in an array of pixels
+    //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
+    Vec *image = new Vec(width * height); //usin this to not mix Vec and Vector, and is also more efficient
+
+    for (int y = 0; y < height; ++y){
+        for (int x = 0; x < width; ++x){
+            Ray ray = camera.generateRay(x, y);
+            Vec pixel_result(0.0, 0.0, 0.0);
+            for (int i = 0; i < numSamples; ++i){
+                tracePath(ray, pixel_result);
+            }
+            pixel_result = pixel_result + background_color * ambient_intensity;
+            image[y * width + x] = pixel_result / numSamples;
+        }
+     }
+    return image;
+}
+
+void tracePath(Ray& ray, Vec pixel_result) {
     // Pseudo-code:
     // if (hit_light) {
     //     ray.result += ray.throughput * light;
@@ -13,6 +35,30 @@ void TracePath(Ray& ray) {
     // } else {
     //     ray.result += ray.throughput * EnvMap();
     // }
+}
+
+void writePPM(const std::string& filename, const Vec* image, int width, int height) {
+    std::ofstream ppmFile(filename);
+    if (!ppmFile.is_open()) {
+        std::cerr << "Error: Failed to open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    // Write PPM header
+    ppmFile << "P3\n";
+    ppmFile << width << " " << height << "\n";
+    ppmFile << "255\n"; // Maximum color value
+
+    // Write pixel values
+    for (int i = 0; i < width * height; i++){
+            Vec pixelColor = image[i] * 255.0;
+            ppmFile << static_cast<int>(pixelColor.x) << " "
+                    << static_cast<int>(pixelColor.y) << " "
+                    << static_cast<int>(pixelColor.z) << "\n";
+        
+    }
+
+    ppmFile.close();
 }
 
 int main(){
@@ -28,30 +74,18 @@ int main(){
     //Defining Number of Samples
     int numSamples = 10; //npath 10 in .sdl size
 
-    //
-    Vec background_color(0.0,0.0,0.0);
+    //Defining Background Collor
+    Vec background_color(0.0,0.0,0.0); //backgrounud valeus of the .sdl file
 
-    //
-    double ambient_intensity = 0.5;
+    //Ambient light intensity
+    double ambient_intensity = 0.5; //ambient 0.5 of .sdl file
 
-    //
-    Vec *image = new Vec(width * height);
-    //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
+    //Execute path tracing algorithm
+    Vec *image = pathTracing(camera, width, height, numSamples, background_color, ambient_intensity);
+    
+    //Write the result to a PPM File
+    writePPM("output.ppm", image, width, height);
 
-     //PathTracing Pseudocode
-     //TODO Implement all the necessary functions  for the PathTracing
-     for (int y = 0; y < height; ++y){
-        for (int x = 0; x < width; ++x){
-            Ray ray = camera.generateRay(x, y);
-            Vec pixel_result(0.0, 0.0, 0.0);
-            for (int i = 0; i < numSamples; ++i){
-                TracePath(ray);
-            }
-            pixel_result = pixel_result + background_color * ambient_intensity;
-            image[y * width + x] = pixel_result / numSamples;
-        }
-     }
-
-
+    delete[] image;
     return 0;
 }

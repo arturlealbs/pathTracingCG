@@ -14,6 +14,7 @@ public:
     Vec operator+(const Vec &b) const;
     Vec operator-(const Vec &b) const;
     Vec operator*(double b) const;
+    Vec operator/(double b) const;
     Vec mult(const Vec &b) const;
     Vec& norm();
     double dot(const Vec &b) const;
