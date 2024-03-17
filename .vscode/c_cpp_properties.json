@@ -6,7 +6,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/algelin/Ray",
                 "${workspaceFolder}/algelin/Vector",
-                "${workspaceFolder}/algelin/OrthographicCamera"
+                "${workspaceFolder}/algelin/OrthographicCamera",
+                "${workspaceFolder}/algelin/Triangle"
             ],
             "defines": [
                 "_DEBUG",

@@ -75,7 +75,7 @@ int main(){
     int numSamples = 10; //npath 10 in .sdl size
 
     //Defining Background Collor
-    Vec background_color(0.0,0.0,0.0); //backgrounud valeus of the .sdl file
+    Vec background_color(0.0,0.0,0.0); //backgrounud values of the .sdl file
 
     //Ambient light intensity
     double ambient_intensity = 0.5; //ambient 0.5 of .sdl file
