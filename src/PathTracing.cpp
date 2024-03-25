@@ -1,29 +1,32 @@
 #include "PathTracing.h"
 
+#include <Triangle.h>
 #include <Ray.h>
 #include <Vec.h>
 #include <OrthoCam.h>
+#include <Scene.h>
+#include <vector>
 
-Vec* pathTracing(OrthoCam camera, int width, int height, int numSamples, Vec background_color, double ambient_intensity){
+Vec* pathTracing(Scene s){
     //The result of the PT should be saved in an array of pixels
     //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
-    Vec *image = new Vec(width * height); //usin this to not mix Vec and Vector, and is also more efficient
+    Vec *image = new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient
 
-    for (int y = 0; y < height; ++y){
-        for (int x = 0; x < width; ++x){
-            Ray ray = camera.generateRay(x, y);
+    for (int y = 0; y < s.height; ++y){
+        for (int x = 0; x < s.width; ++x){
+            Ray ray = s.camera.generateRay(x, y);
             Vec pixel_result(0.0, 0.0, 0.0);
-            for (int i = 0; i < numSamples; ++i){
-                tracePath(ray, pixel_result);
+            for (int i = 0; i < s.num_samples; ++i){
+                tracePath(s, ray, pixel_result);
             }
-            pixel_result = pixel_result + background_color * ambient_intensity;
-            image[y * width + x] = pixel_result / numSamples;
+            pixel_result = pixel_result + s.background_color * s.ambient_intensity;
+            image[y * s.width + x] = pixel_result / s.num_samples;
         }
      }
     return image;
 }
 
-void tracePath(Ray& ray, Vec pixel_result) {
+void tracePath(Scene s, Ray& ray, Vec pixel_result) {
     // Pseudo-code:
     // if (hit_light) {
     //     ray.result += ray.throughput * light;
@@ -34,4 +37,26 @@ void tracePath(Ray& ray, Vec pixel_result) {
     // } else {
     //     ray.result += ray.throughput * EnvMap();
     // }
+    
+    if (hitLight(ray, s.lights) != nullptr){}
+    else if (hitSomething(ray, s.objects) != nullptr){}
+    else{}
+}
+
+LightObject* hitLight(Ray& ray, std::vector<LightObject> lights){
+    for(LightObject light: lights){
+        if (light.intersect(ray)){
+            return new LightObject(light);
+        }
+    }
+    return nullptr;
+}
+
+Object* hitSomething(Ray& ray, std::vector<Object> objects){
+    for(Object object: objects){
+        if (object.intersect(ray)){
+            return new Object(object);
+        }
+    }
+    return nullptr;
 }

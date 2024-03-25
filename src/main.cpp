@@ -33,12 +33,12 @@ void writePPM(const std::string& filename, const Vec* image, int width, int heig
 }
 
 int main(){
-    Scene s = readSdlFile("scenes\cornellroom.sdl");
+    Scene scene = readSdlFile("scenes\cornellroom.sdl");
   
-    Vec *image = pathTracing(s.camera, s.width,s.height, s.num_samples, s.background_color,s.ambient_intensity);
+    Vec *image = pathTracing(scene);
     
     //Write the result to a PPM File
-    writePPM("output.ppm", image, s.width, s.height);
+    writePPM("output.ppm", image, scene.width, scene.height);
 
     delete[] image;
     return 0;

@@ -4,11 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/algelin/Ray",
-                "${workspaceFolder}/algelin/Vector",
-                "${workspaceFolder}/algelin/OrthographicCamera",
-                "${workspaceFolder}/algelin/Triangle",
-                "${workspaceFolder}/src"
+                "${workspaceFolder}/algelin",
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/algelin/Triangle"
             ],
             "defines": [
                 "_DEBUG",

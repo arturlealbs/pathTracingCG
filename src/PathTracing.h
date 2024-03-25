@@ -1,11 +1,12 @@
-#ifndef SRC_SCENE_H
-#define SRC_SCENE_H
+#ifndef SRC_PATHTRACING_H
+#define SRC_PATHTRACING_H
 
 #include <Ray.h>
 #include <Vec.h>
 #include <OrthoCam.h>
+#include <Scene.h>
 
-Vec* pathTracing(OrthoCam camera, int width, int height, int numSamples, Vec background_color, double ambient_intensity);
-void tracePath(Ray& ray, Vec pixel_result);
+Vec* pathTracing(Scene s);
+void tracePath(Scene s, Ray& ray, Vec pixel_result);
 
-#endif // SRC_SCENE_H
+#endif // SRC_PATHTRACING_H
