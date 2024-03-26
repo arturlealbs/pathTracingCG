@@ -8,13 +8,13 @@
 eye 0.0 0.0 5.7
 size 200 200
 ortho -1 -1 1 1
-background 0.0 0.0 1.0
+background 0.0 0.0 0.0
 ambient 0.5
 
 # Luz branca retangulo no centro do teto
 light luzcornell.obj 1.0 1.0 1.0 1.0
 
-npaths 10
+npaths 1
 tonemapping 1.0
 seed 9
 
@@ -76,5 +76,5 @@ brdf params_file
 # solid_tex.obj = arquivo representando geometria da textura sólida
 solid_tex solid_tex.obj
 
-output cornell.pnm
+output cornell.ppm
 

@@ -1,12 +1,15 @@
 #include <iostream>
-#include<vector>
+#include <vector>
 #include <fstream>
 #include <string>
 #include <sstream>
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <random>
 
+//LINEAR ALGEBRA CLASSES
+//Classes envolvidas com as operações feitas para cálculos de Path Tracing
 class Vec {
 public:
     double x, y, z;
@@ -154,19 +157,28 @@ class OrthoCam {
 public:
     Vec eye; // Position of the camera
     double left, right, bottom, top; // Orthographic projection window boundaries
-
+    int hres, wres; 
+    double height /* abs(y1 - y0) */, width/* abs(x1 - x0) */; 
+    double pixel_h, pixel_w; 
     // Constructor
-    OrthoCam(const Vec& eye_, double left_, double right_, double bottom_, double top_) :
-        eye(eye_), left(left_), right(right_), bottom(bottom_), top(top_) {};
-
-    // Generate a ray from the camera for a given pixel coordinates (x, y)
+    OrthoCam(const Vec& eye_, double left_, double right_, double bottom_, double top_, int wres_, int hres_) :
+        eye(eye_), left(left_), right(right_), bottom(bottom_), top(top_),wres(wres_), hres(hres_) {
+            height = std::abs(top_ - bottom_); 
+            width = std::abs( right_ - left_ );
+            pixel_h = height/hres; 
+            pixel_w = width/wres;
+        };
+    // (height / hres)
+    // Generate a ray from the camera for a given pixel coordinates (x, y)'
     Ray generateRay(double x, double y) const {
-        double u = left + (right - left) * (x + 0.5); // Calculate u coordinate
-        double v = bottom + (top - bottom) * (y + 0.5); // Calculate v coordinate
+        double u = left + (right - left) * (x + 0.5) / wres; // Calculate u coordinate
+        double v = bottom + (top - bottom) * (y + 0.5) / hres; // Calculate v coordinate
         return Ray(eye, Vec(u, v, 0) - eye); // Generate ray from eye to (u, v, 0)
     }
 };
 
+//DISPLACEMENT CLASSES
+//Classes e funções envolvidas na implementação do Displacement Mapping
 class PPM {
 private:
     int width, height, maxColorValue;
@@ -209,56 +221,11 @@ public:
     }
 };
 
-struct Scene {
-    OrthoCam camera;
-    int width, height;
-    Vec background_color;
-    double ambient_intensity;
-    std::vector<LightObject> lights;
-    std::vector<Object> objects;
-    int num_samples;
-    double tonemapping;
-    int seed;
-    std::string output;
-
-    // Constructor
-    Scene(const OrthoCam& cam, int w, int h, const Vec& bg_color, double ambient_int,
-          const std::vector<LightObject>& l, const std::vector<Object>& obj,
-          int num_samples, double tonemapping, int seed, std::string output)
-        : camera(cam), width(w), height(h), background_color(bg_color),
-          ambient_intensity(ambient_int), lights(l), objects(obj),
-          num_samples(num_samples), tonemapping(tonemapping), seed(seed), output(output) {}
-
-
-};
-
 struct Displacement{
     PPM texture;
     int face_id;
 
     Displacement(PPM texture_file, int face_id) : texture(texture_file), face_id(face_id) {};
-};
-
-void writePNM(const std::string& filename, std::vector<Vec> image, int width, int height) {
-    std::ofstream pnmFile(filename);
-    if (!pnmFile.is_open()) {
-        std::cerr << "Error: Failed to open file " << filename << " for writing." << std::endl;
-        return;
-    }
-
-    pnmFile << "P6\n"; // P6 indicates binary encoding, Se não funcionar usa P3
-    pnmFile << width << " " << height << "\n";
-    pnmFile << "255\n"; // Maximum color value
-    // Write pixel values in binary format
-    for (int i = 0; i < width * height; i++) {
-        Vec pixelColor = image[i];
-        //std::cout << pixelColor.x << " " << pixelColor.y << " " << pixelColor.z << '\n';
-        pnmFile << (((int)(pixelColor.x * 255))%256) << " "
-                << (((int)(pixelColor.y * 255))%256) << " "
-                << (((int)(pixelColor.z * 255))%256) << "\n";
-
-    }
-    pnmFile.close();
 };
 
 Vec getPixelValue(std::pair<double,double> uv, PPM image){
@@ -335,66 +302,32 @@ std::vector<Object> displacementMapping(std::pair<Object,Object> face,PPM image)
     return triangles;
 }
 
-LightObject* hitLight(Ray& ray, std::vector<LightObject>& lights){
-    for(auto&& light: lights){
-        if (light.intersect(ray)){
-            return &light;
-        }
-    }
-    return nullptr;
-}
+//SCENE CLASSES
+//Classes e funções envolvidas na construção da cena que será renderizada
+struct Scene {
+    OrthoCam camera;
+    int width, height;
+    Vec background_color;
+    double ambient_intensity;
+    std::vector<LightObject> lights;
+    std::vector<Object> objects;
+    int num_samples;
+    double tonemapping;
+    int seed;
+    std::string output;
 
-Object* hitSomething(Ray& ray, std::vector<Object> objects){
-    for(auto&& object: objects){
-        if (object.intersect(ray)){
-            return &object;
-        }
-    }
-    return nullptr;
-}
+    // Constructor
+    Scene(const OrthoCam& cam, int w, int h, const Vec& bg_color, double ambient_int,
+          const std::vector<LightObject>& l, const std::vector<Object>& obj,
+          int num_samples, double tonemapping, int seed, std::string output)
+        : camera(cam), width(w), height(h), background_color(bg_color),
+          ambient_intensity(ambient_int), lights(l), objects(obj),
+          num_samples(num_samples), tonemapping(tonemapping), seed(seed), output(output) {}
 
-void tracePath(Scene s, Ray& ray, Vec pixel_result) {
-    // Pseudo-code:
-    // if (hit_light) {
-    //     ray.result += ray.throughput * light;
-    // } else if (hit_something) {
-    //     BRDF brdf = SampleBRDF();
-    //     ray.throughput *= brdf / brdf_pdf; // brdf_pdf is the probability density function for the sampled BRDF
-    //     TracePath(brdf_ray); // brdf_ray is the new ray direction sampled from BRDF
-    // } else {
-    //     ray.result += ray.throughput * EnvMap();
-    // }
-    if (hitLight(ray, s.lights) != nullptr){
 
-    }
-    else if (hitSomething(ray, s.objects) != nullptr){
+};
 
-    }
-    else{
-
-    }
-}
-
-std::vector<Vec> pathTracing(Scene s){
-    //The result of the PT should be saved in an array of pixels
-    //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
-    std::vector<Vec>image(s.height * s.width);//new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient
-    
-    for (int y = 0; y < s.height; ++y){
-        for (int x = 0; x < s.width; ++x){
-            Ray ray = s.camera.generateRay(x, y);
-            Vec pixel_result(0.0, 0.0, 0.0);
-            for (int i = 0; i < s.num_samples; ++i){
-                //tracePath(s, ray, pixel_result);
-            }
-            pixel_result = pixel_result + s.background_color * s.ambient_intensity;
-            image[y * s.width + x] = pixel_result;
-        }
-     }
-    return image;
-}
-
-void readLights(const std::string& filename, std::vector<LightObject> triangles, Vec color, double intensity){
+void readLights(const std::string& filename, std::vector<LightObject>& triangles, Vec color, double intensity){
     std::string filepath = "../files/" + filename;
     std::ifstream file(filepath);
     if (!file.is_open()) {
@@ -425,7 +358,7 @@ void readLights(const std::string& filename, std::vector<LightObject> triangles,
     file.close();
 }
 
-void readObjects(const std::string& filename, std::vector<Object> triangles, Vec color, 
+void readObjects(const std::string& filename, std::vector<Object>& triangles, Vec color, 
                  double ambient_coeff_, double diffuse_coeff_, double specular_coeff_,
                  double transparent_coeff_, double specular_exponent_){
     std::string filepath = "../files/" + filename;
@@ -443,8 +376,9 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
         std::istringstream iss(line);
         std::string token;
         iss >> token;
-
-        if (token == "v") {
+        if (token == "#" || token == ""){
+            continue;
+        } else if (token == "v") {
             Vec vertex;
             iss >> vertex.x >> vertex.y >> vertex.z;
 
@@ -455,11 +389,11 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
             Object triangle1(vertices[v0_idx - 1],vertices[v1_idx - 1],vertices[v2_idx - 1], 
             color, ambient_coeff_, diffuse_coeff_,  specular_coeff_, transparent_coeff_, specular_exponent_);
 
-            iss >> v0_idx >> v1_idx >> v2_idx; 
+/*             iss >> v0_idx >> v1_idx >> v2_idx; 
             Object triangle2(vertices[v0_idx - 1], vertices[v1_idx - 1], vertices[v2_idx - 1], 
                              color, ambient_coeff_, diffuse_coeff_, specular_coeff_, transparent_coeff_, specular_exponent_);
-            
-            faces.push_back({triangle1,triangle2});
+             */
+            triangles.push_back(triangle1);
         } else if (token == "displacement"){
             std::string texture_file;
             int face_id;
@@ -469,6 +403,7 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
             displacements.push_back(disp);
         }
     }
+    /*
     int i = 1;
     for (Displacement disp : displacements){
         std::vector<Object> newTriangles = displacementMapping(faces[disp.face_id - i], disp.texture);
@@ -479,10 +414,10 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
         ++i;
     }
     
-    for (std::pair<Object,Object> face: faces){
+    for (auto&& face: faces){
         triangles.push_back(face.first);
         triangles.push_back(face.second);
-    }
+    }*/
     file.close();
 }
 
@@ -552,9 +487,100 @@ Scene readSdlFile(const std::string& filename) {
     file.close();
 
     //creating a scene and returning it
-    return Scene(OrthoCam(eye, left,right,bottom,top), width, height, background_color, 
+    return Scene(OrthoCam(eye, left,right,bottom,top, width, height), width, height, background_color, 
                 ambient_intensity, lights, objects, num_samples, tonemapping,seed, output);
 }
+
+//PATH TRACING CLASSES
+//Classes e funções para calcular Path Tracing
+LightObject* hitLight(Ray& ray, std::vector<LightObject>& lights){
+    for(auto&& light: lights){
+        if (light.intersect(ray)){
+            return &light;
+        }
+    }
+    return nullptr;
+}
+
+Object* hitSomething(Ray& ray, std::vector<Object>& objects){
+    for(auto&& object: objects){
+        if (object.intersect(ray)){
+            return &object;
+        }
+    }
+    return nullptr;
+}
+
+Vec tracePath(Scene& s, Ray& ray) {
+    LightObject* lightTarget = hitLight(ray, s.lights);
+    Object* objectTarget = hitSomething(ray, s.objects);
+    
+    if (lightTarget != nullptr){
+        std::cout<<"Bateu na luz"<< std::endl;
+        Vec lightColor = lightTarget -> color;
+        return lightColor;
+    }
+    else if (objectTarget != nullptr){
+        std::cout<<"Bateu num objeto"<<std::endl;
+        Vec objectColor = objectTarget -> color;
+        return objectColor;
+    }
+    else{
+        std::cout<<"vacuo"<<std::endl;
+        return s.background_color;
+    }
+}
+
+std::vector<Vec> pathTracing(Scene& s){
+    //The result of the PT should be saved in an array of pixels
+    //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
+    std::vector<Vec>image(s.height * s.width);//new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient 
+    std::random_device rd;
+    std::mt19937 gen(rd()); // Mersenne Twister pseudo-random generator
+    // Define the distribution for doubles
+    std::uniform_real_distribution<double> errorH(-s.camera.pixel_h/2, s.camera.pixel_h/2); // Range [0.0, 1.0)
+    std::uniform_real_distribution<double> errorW(-s.camera.pixel_w/2, s.camera.pixel_w/2);// pixel.Res/2); // Range [0.0, 1.0)
+    for (int y = 0; y < s.height; ++y){
+        for (int x = 0; x < s.width; ++x){
+            //Vec pixel_result(0.0, 0.0, 0.0);
+            //for (int i = 0; i < s.num_samples; ++i){
+                //auto pixelSample = s.camera.[i][j] + {dist(gen), dist(gen), 0.0};
+                //auto ray = Ray(s.camera.originGlobal, (pixelSample - s.camera.originGlobal).norm();
+                //Ray ray = s.camera.generateRay(x, y, errorW(gen), errorH(gen));
+                //pixel_result = pixel_result + tracePath(s, ray);
+            //}
+            Ray ray = s.camera.generateRay(x, y);
+            Vec pixel_result = tracePath(s, ray);
+            //pixel_result = pixel_result + s.background_color * s.ambient_intensity;
+            std::cout<<y;
+            image[y * s.width + x] = pixel_result;
+        }
+     }
+    return image;
+}
+
+//OUTPUT CLASSES
+void writePNM(const std::string& filename, std::vector<Vec> image, int width, int height) {
+    std::ofstream ppmFile(filename);
+    if (!ppmFile.is_open()) {
+        std::cerr << "Error: Failed to open file " << filename << " for writing." << std::endl;
+        return;
+    }
+
+    ppmFile << "P3\n"; // P6 indicates binary encoding, Se não funcionar usa P3
+    ppmFile << width << " " << height << "\n";
+    ppmFile << "255\n"; // Maximum color value
+    // Write pixel values in binary format
+    for (int i = 0; i < width * height; i++) {
+        Vec pixelColor = image[i];
+        //std::cout << pixelColor.x << " " << pixelColor.y << " " << pixelColor.z << '\n';
+        ppmFile << (((int)(pixelColor.x * 255))%256) << " "
+                << (((int)(pixelColor.y * 255))%256) << " "
+                << (((int)(pixelColor.z * 255))%256) << "\n";
+
+    }
+    ppmFile.close();
+};
 
 int main(){
     Scene scene = readSdlFile("../scenes/cornellroom.sdl");
