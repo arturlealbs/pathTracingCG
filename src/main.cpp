@@ -1,10 +1,4 @@
 #include <iostream>
-//#include <Ray.h>
-//#include <Vec.h>
-//#include <OrthoCam.h>
-//#include <Scene.h>
-//#include <PathTracing.h>
-//#include <PPM.h>
 #include<vector>
 #include <fstream>
 #include <string>
@@ -363,6 +357,14 @@ Object* hitSomething(Ray& ray, std::vector<Object> objects){
     return nullptr;
 }
 
+Vec getRefraction(double n1, double n2, Vec i, Vec n) {
+  float cosI = -i.dot(n);
+  float sen2t = std::pow(n1 / n2, 2) * (1 - std::pow(cosI, 2));
+
+  Vec t = (i * ((n1 / n2)) + (((n1 / n2) * cosI - n * std::sqrt(1 - sen2t))));
+  return t;
+}
+
 void tracePath(Scene s, Ray& ray, Vec pixel_result) {
     // Pseudo-code:
     // if (hit_light) {
@@ -374,17 +376,21 @@ void tracePath(Scene s, Ray& ray, Vec pixel_result) {
     // } else {
     //     ray.result += ray.throughput * EnvMap();
     // }
-    
-    if (hitLight(ray, s.lights) != nullptr){}
-    else if (hitSomething(ray, s.objects) != nullptr){}
-    else{}
+    if (hitLight(ray, s.lights) != nullptr){
+
+    }
+    else if (hitSomething(ray, s.objects) != nullptr){
+
+    }
+    else{
+
+    }
 }
 
 Vec* pathTracing(Scene s){
     //The result of the PT should be saved in an array of pixels
     //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
     Vec *image = new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient
-
     for (int y = 0; y < s.height; ++y){
         for (int x = 0; x < s.width; ++x){
             Ray ray = s.camera.generateRay(x, y);
@@ -563,11 +569,12 @@ Scene readSdlFile(const std::string& filename) {
 
 int main(){
     Scene scene = readSdlFile("../scenes/cornellroom.sdl");
-  
+    std::cout<<"finished reading file";
     Vec *image = pathTracing(scene);
-    
+    std::cout<<"finished path tracing";
     //Write the result to a PPM File
     writePNM(scene.output, image, scene.width, scene.height);
+    std::cout<<"finished writing";
 
     delete[] image;
     return 0;
