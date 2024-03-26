@@ -13,11 +13,12 @@ struct Scene {
     int num_samples;
     double tonemapping;
     int seed;
+    std::string output;
 
     // Constructor
     Scene(const OrthoCam& cam, int w, int h, const Vec& bg_color, double ambient_int,
           const std::vector<LightObject>& l, const std::vector<Object>& obj,
-          int num_samples, double tone_mapping, int s);
+          int num_samples, double tonemapping, int seed,std::string output);
 
 };
 

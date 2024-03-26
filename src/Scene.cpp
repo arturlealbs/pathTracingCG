@@ -3,6 +3,7 @@
 #include <OrthoCam.h>
 #include <Triangle.h>
 #include <Vec.h>
+#include <PPM.h>
 
 #include <iostream>
 #include <fstream>
@@ -19,16 +20,24 @@ struct Scene {
     int num_samples;
     double tonemapping;
     int seed;
+    std::string output;
 
     // Constructor
     Scene(const OrthoCam& cam, int w, int h, const Vec& bg_color, double ambient_int,
           const std::vector<LightObject>& l, const std::vector<Object>& obj,
-          int num_samples, double tone_mapping, int s)
+          int num_samples, double tonemapping, int seed, std::string output)
         : camera(cam), width(w), height(h), background_color(bg_color),
           ambient_intensity(ambient_int), lights(l), objects(obj),
-          num_samples(num_samples), tonemapping(tone_mapping), seed(s) {}
+          num_samples(num_samples), tonemapping(tonemapping), seed(seed), output(output) {}
 
 
+};
+
+struct Displacement{
+    PPM texture;
+    int face_id;
+
+    Displacement(PPM texture_file, int face_id) : texture(texture_file), face_id(face_id) {};
 };
 
 Scene readSdlFile(const std::string& filename) {
@@ -48,6 +57,7 @@ Scene readSdlFile(const std::string& filename) {
     int num_samples;
     double tonemapping ;
     int seed;
+    std::string output;
 
     std::vector<LightObject> lights;
     std::vector<Object> objects;
@@ -88,6 +98,8 @@ Scene readSdlFile(const std::string& filename) {
             double r, g, b, ka, kd, ks, kt, n;
             iss >> name >> r >> g >> b >> ka >> kd >> ks >> kt >> n;
             readObjects(name, objects, Vec(r, g, b), ka, kd, ks, kt, n);
+        } else if (token == "output"){
+            iss >> output;
         }
     }
 
@@ -95,7 +107,7 @@ Scene readSdlFile(const std::string& filename) {
 
     //creating a scene and returning it
     return Scene(OrthoCam(eye, left,right,bottom,top), width, height, background_color, 
-                ambient_intensity, lights, objects, num_samples, tonemapping,seed);
+                ambient_intensity, lights, objects, num_samples, tonemapping,seed, output);
 }
 
 void readLights(const std::string& filename, std::vector<LightObject> triangles, Vec color, double intensity){
@@ -140,24 +152,49 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
     }
 
     std::vector<Vec> vertices;
+    std::vector<std::pair<Object,Object>> faces;
     std::string line;
+    std::vector<Displacement> displacements;
     while (std::getline(file, line)) {
         std::istringstream iss(line);
         std::string token;
         iss >> token;
+
         if (token == "v") {
             Vec vertex;
             iss >> vertex.x >> vertex.y >> vertex.z;
+
             vertices.push_back(vertex);
         } else if (token == "f") {
             int v0_idx, v1_idx, v2_idx;
             iss >> v0_idx >> v1_idx >> v2_idx;
-            Object triangle(vertices[v0_idx - 1],vertices[v1_idx - 1],vertices[v2_idx - 1], 
+            Object triangle1(vertices[v0_idx - 1],vertices[v1_idx - 1],vertices[v2_idx - 1], 
             color, ambient_coeff_, diffuse_coeff_,  specular_coeff_, transparent_coeff_, specular_exponent_);
-     
-            triangles.push_back(triangle);
+
+            iss >> v0_idx >> v1_idx >> v2_idx; 
+            Object triangle2(vertices[v0_idx - 1], vertices[v1_idx - 1], vertices[v2_idx - 1], 
+                             color, ambient_coeff_, diffuse_coeff_, specular_coeff_, transparent_coeff_, specular_exponent_);
+            
+            faces.push_back({triangle1,triangle2});
+        } else if (token == "displacement"){
+            std::string texture_file;
+            int face_id;
+            iss>> texture_file >> face_id;
+            Displacement disp = Displacement(PPM(texture_file), face_id);
+
+            displacements.push_back(disp);
         }
     }
-
+    int i = 1;
+    for (Displacement disp : displacements){
+        //displacementMapping(faces[disp.face_id - i], disp.texture);
+        faces.erase(faces.begin() + (disp.face_id - i));
+        ++i;
+    }
+    
+    for (std::pair<Object,Object> face: faces){
+        triangles.push_back(face.first);
+        triangles.push_back(face.second);
+    }
     file.close();
 }
