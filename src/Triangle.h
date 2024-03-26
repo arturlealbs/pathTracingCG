@@ -26,6 +26,8 @@ public:
 
     Object(Vec v0_, Vec v1_, Vec v2_, Vec color_, double ambient_coeff_, double diffuse_coeff_, 
            double specular_coeff_, double transparent_coeff_, double specular_exponent_);
+    
+    std::vector<Object> subdivide() const;
 };
 
 class LightObject : public Triangle {

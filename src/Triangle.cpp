@@ -43,21 +43,6 @@ public:
         else // There is a line intersection but not a ray intersection.
             return false;
     }
-    std::vector<Triangle> subdivide() const {
-        std::vector<Triangle> subTriangles;
-
-        Vec mid01 = (v0 + v1) * 0.5; // Midpoint of edge v0-v1
-        Vec mid12 = (v1 + v2) * 0.5; // Midpoint of edge v1-v2
-        Vec mid20 = (v2 + v0) * 0.5; // Midpoint of edge v2-v0
-
-        // Create four new triangles by connecting midpoints with original vertices
-        subTriangles.push_back(Triangle(v0, mid01, mid20)); // Triangle 1
-        subTriangles.push_back(Triangle(mid01, v1, mid12)); // Triangle 2
-        subTriangles.push_back(Triangle(mid12, v2, mid20)); // Triangle 3
-        subTriangles.push_back(Triangle(mid01, mid12, mid20)); // Triangle 4 (center)
-
-        return subTriangles;
-    }
 };
 
 class Object : public Triangle {
@@ -78,6 +63,23 @@ public:
           ambient_coeff(ambient_coeff_), diffuse_coeff(diffuse_coeff_),
           specular_coeff(specular_coeff_), transparent_coeff(transparent_coeff_),
           specular_exponent(specular_exponent_) {}
+
+    std::vector<Object> subdivide() const {
+        std::vector<Object> subTriangles;
+
+        Vec mid01 = (v0 + v1) * 0.5; // Midpoint of edge v0-v1
+        Vec mid12 = (v1 + v2) * 0.5; // Midpoint of edge v1-v2
+        Vec mid20 = (v2 + v0) * 0.5; // Midpoint of edge v2-v0
+
+        
+        // Create four new triangles by connecting midpoints with original vertices
+        subTriangles.push_back(Object(v0, mid01, mid20, color, ambient_coeff, diffuse_coeff,specular_coeff,transparent_coeff,specular_coeff)); // Triangle 1
+        subTriangles.push_back(Object(mid01, v1, mid12, color, ambient_coeff, diffuse_coeff,specular_coeff,transparent_coeff,specular_coeff)); // Triangle 2
+        subTriangles.push_back(Object(mid12, v2, mid20, color, ambient_coeff, diffuse_coeff,specular_coeff,transparent_coeff,specular_coeff)); // Triangle 3
+        subTriangles.push_back(Object(mid01, mid12, mid20, color, ambient_coeff, diffuse_coeff,specular_coeff,transparent_coeff,specular_coeff)); // Triangle 4 (center)
+
+        return subTriangles;
+    }
 };
 
 class LightObject : public Triangle {

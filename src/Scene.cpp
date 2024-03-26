@@ -4,6 +4,7 @@
 #include <Triangle.h>
 #include <Vec.h>
 #include <PPM.h>
+#include <DisplacementMapping.h>
 
 #include <iostream>
 #include <fstream>
@@ -187,7 +188,10 @@ void readObjects(const std::string& filename, std::vector<Object> triangles, Vec
     }
     int i = 1;
     for (Displacement disp : displacements){
-        //displacementMapping(faces[disp.face_id - i], disp.texture);
+        std::vector<Object> newTriangles = displacementMapping(faces[disp.face_id - i], disp.texture);
+        for (Object triangle: newTriangles){
+            triangles.push_back(triangle);
+        }
         faces.erase(faces.begin() + (disp.face_id - i));
         ++i;
     }
