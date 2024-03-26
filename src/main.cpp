@@ -239,7 +239,7 @@ struct Displacement{
     Displacement(PPM texture_file, int face_id) : texture(texture_file), face_id(face_id) {};
 };
 
-void writePNM(const std::string& filename, const Vec* image, int width, int height) {
+void writePNM(const std::string& filename, std::vector<Vec> image, int width, int height) {
     std::ofstream pnmFile(filename);
     if (!pnmFile.is_open()) {
         std::cerr << "Error: Failed to open file " << filename << " for writing." << std::endl;
@@ -249,19 +249,15 @@ void writePNM(const std::string& filename, const Vec* image, int width, int heig
     pnmFile << "P6\n"; // P6 indicates binary encoding, Se não funcionar usa P3
     pnmFile << width << " " << height << "\n";
     pnmFile << "255\n"; // Maximum color value
-
     // Write pixel values in binary format
     for (int i = 0; i < width * height; i++) {
-        Vec pixelColor = image[i] * 255.0;
-        for (int i = 0; i < width * height; i++){
-        Vec pixelColor = image[i] * 255.0;
-        pnmFile << static_cast<int>(pixelColor.x) << " "
-                << static_cast<int>(pixelColor.y) << " "
-                << static_cast<int>(pixelColor.z) << "\n";
-        
-    }
-    }
+        Vec pixelColor = image[i];
+        //std::cout << pixelColor.x << " " << pixelColor.y << " " << pixelColor.z << '\n';
+        pnmFile << (((int)(pixelColor.x * 255))%256) << " "
+                << (((int)(pixelColor.y * 255))%256) << " "
+                << (((int)(pixelColor.z * 255))%256) << "\n";
 
+    }
     pnmFile.close();
 };
 
@@ -339,30 +335,22 @@ std::vector<Object> displacementMapping(std::pair<Object,Object> face,PPM image)
     return triangles;
 }
 
-LightObject* hitLight(Ray& ray, std::vector<LightObject> lights){
-    for(LightObject light: lights){
+LightObject* hitLight(Ray& ray, std::vector<LightObject>& lights){
+    for(auto&& light: lights){
         if (light.intersect(ray)){
-            return new LightObject(light);
+            return &light;
         }
     }
     return nullptr;
 }
 
 Object* hitSomething(Ray& ray, std::vector<Object> objects){
-    for(Object object: objects){
+    for(auto&& object: objects){
         if (object.intersect(ray)){
-            return new Object(object);
+            return &object;
         }
     }
     return nullptr;
-}
-
-Vec getRefraction(double n1, double n2, Vec i, Vec n) {
-  float cosI = -i.dot(n);
-  float sen2t = std::pow(n1 / n2, 2) * (1 - std::pow(cosI, 2));
-
-  Vec t = (i * ((n1 / n2)) + (((n1 / n2) * cosI - n * std::sqrt(1 - sen2t))));
-  return t;
 }
 
 void tracePath(Scene s, Ray& ray, Vec pixel_result) {
@@ -387,19 +375,20 @@ void tracePath(Scene s, Ray& ray, Vec pixel_result) {
     }
 }
 
-Vec* pathTracing(Scene s){
+std::vector<Vec> pathTracing(Scene s){
     //The result of the PT should be saved in an array of pixels
     //std::vector<std::vector<Vec>> image(width, std::vector<Vec>(height, Vec()));
-    Vec *image = new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient
+    std::vector<Vec>image(s.height * s.width);//new Vec(s.width * s.height); //usin this to not mix Vec and Vector, and is also more efficient
+    
     for (int y = 0; y < s.height; ++y){
         for (int x = 0; x < s.width; ++x){
             Ray ray = s.camera.generateRay(x, y);
             Vec pixel_result(0.0, 0.0, 0.0);
             for (int i = 0; i < s.num_samples; ++i){
-                tracePath(s, ray, pixel_result);
+                //tracePath(s, ray, pixel_result);
             }
             pixel_result = pixel_result + s.background_color * s.ambient_intensity;
-            image[y * s.width + x] = pixel_result / s.num_samples;
+            image[y * s.width + x] = pixel_result;
         }
      }
     return image;
@@ -570,12 +559,11 @@ Scene readSdlFile(const std::string& filename) {
 int main(){
     Scene scene = readSdlFile("../scenes/cornellroom.sdl");
     std::cout<<"finished reading file";
-    Vec *image = pathTracing(scene);
+    std::vector<Vec> image = pathTracing(scene);
     std::cout<<"finished path tracing";
     //Write the result to a PPM File
     writePNM(scene.output, image, scene.width, scene.height);
     std::cout<<"finished writing";
 
-    delete[] image;
     return 0;
 }
