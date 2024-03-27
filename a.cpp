@@ -300,6 +300,9 @@ color trace_path(int depth, Ray ray, Scene scene, Light luz, int i, int j,
 
   vec toLight = cena.light.pos - inters;
   toLight = toLight.normalized();
+
+
+  //---------------------------------------------------------
   float kd = closest.kd, ks = closest.ks, kt = closest.kt;
 
   // ---------------------------color calculation----------------------------

@@ -8,6 +8,8 @@
 #include <limits>
 #include <random>
 
+const int MAX_DEPTH = 5;
+double bias = 1e-3;
 //LINEAR ALGEBRA CLASSES
 //Classes envolvidas com as operações feitas para cálculos de Path Tracing
 class Vec {
@@ -18,7 +20,23 @@ public:
     Vec(double x_ = 0, double y_ = 0, double z_ = 0) : x(x_), y(y_), z(z_) {}
 
     //Operations
-    Vec operator+(const Vec &b) const {
+    double length() { return std::sqrt(x * x + y * y + z * z); };
+
+    Vec operator-() const { return {-x, -y, -z}; };
+    Vec operator+(const double &val) const {
+        return {x + val, y + val, z + val};
+    }
+    Vec operator-(const double &val) const {
+        return {x - val, y - val, z - val};
+    }
+    Vec operator*(const double &val) const {
+        return {x * val, y * val, z * val};
+    }
+
+    Vec operator/(const double &val) const {
+        return {x / val, y / val, z / val};
+    }
+    /* Vec operator+(const Vec &b) const {
         return Vec(x + b.x, y + b.y, z + b.z);
     }
 
@@ -33,9 +51,13 @@ public:
     Vec operator/(double b) const {
         return Vec(x / b, y / b, z / b);
     }
-
+ */
     Vec mult(const Vec &b) const {
         return Vec(x * b.x, y * b.y, z * b.z);
+    }
+
+    Vec div(const Vec &b) const{
+        return Vec(x / b.x, y / b.y, z / b.z);
     }
 
     Vec& norm() {
@@ -50,7 +72,32 @@ public:
     Vec cross(const Vec &b) const {
         return Vec(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
     }
+    
 };
+Vec operator+(const double &s, const Vec &v) { return v + s; };
+Vec operator-(const double &s, const Vec &v) { return v - s; };
+Vec operator*(const double &s, const Vec &v) { return v * s; };
+Vec operator/(const double &s, const Vec &v) { return v / s; };
+
+Vec operator+(const Vec &lhs, const Vec &rhs) {
+  return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
+};
+Vec operator-(const Vec &lhs, const Vec &rhs) {
+  return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z};
+};
+Vec operator*(const Vec &lhs, const Vec &rhs) {
+  return {lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z};
+};
+Vec operator/(const Vec &lhs, const Vec &rhs) {
+  return {lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z};
+};
+
+std::ostream &operator<<(std::ostream &os, const Vec &v) {
+  os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+  return os;
+}
+
+
 
 class Ray {
 public:
@@ -72,8 +119,7 @@ public:
         Vec e2 = v2 - v0;
         normal = e1.cross(e2).norm();
     }
-
-    bool intersect(const Ray &ray) const {
+    std::pair<double,Vec> intersect(const Ray &ray) const {
         double t;
         const double EPSILON = 0.0000001;
         Vec edge1, edge2, h, s, q;
@@ -83,22 +129,25 @@ public:
         h = ray.direction.cross(edge2);
         a = edge1.dot(h);
         if (a > -EPSILON && a < EPSILON)
-            return false; // Ray is parallel to this triangle.
+            return {-1, Vec()}; // Ray is parallel to this triangle.
         f = 1.0 / a;
         s = ray.origin - v0;
         u = f * s.dot(h);
         if (u < 0.0 || u > 1.0)
-            return false;
+            return {-1, Vec()};
         q = s.cross(edge1);
         v = f * ray.direction.dot(q);
         if (v < 0.0 || u + v > 1.0)
-            return false;
+            return {-1, Vec()};
         // Compute t to find out where the intersection point is on the line.
         t = f * edge2.dot(q);
+        auto pontinho = ray.origin + t * ray.direction;
+        //std::pair<t, pontinho>;
+        //std::pair<-1, null>;
         if (t > EPSILON) // ray intersection
-            return true;
+            return {t, pontinho};
         else // There is a line intersection but not a ray intersection.
-            return false;
+            return {-1, Vec()};
     }
 };
 
@@ -170,9 +219,11 @@ public:
         };
     // (height / hres)
     // Generate a ray from the camera for a given pixel coordinates (x, y)'
-    Ray generateRay(double x, double y) const {
+    Ray generateRay(double x, double y, double errorW, double errorH) const {
         double u = left + (right - left) * (x + 0.5) / wres; // Calculate u coordinate
         double v = bottom + (top - bottom) * (y + 0.5) / hres; // Calculate v coordinate
+        u = u + errorW;
+        v = v + errorH;
         return Ray(eye, Vec(u, v, 0) - eye); // Generate ray from eye to (u, v, 0)
     }
 };
@@ -492,43 +543,143 @@ Scene readSdlFile(const std::string& filename) {
 }
 
 //PATH TRACING CLASSES
+//Classes para fazer os cálculos ópticos
+Vec getRefraction(double n1, double n2, Vec i, Vec n) {
+    float cosI = -i.dot(n);
+    float sen2t = std::pow(n1 / n2, 2) * (1 - std::pow(cosI, 2));
+
+    Vec t = ((i * (n1 / n2)) - n * std::sqrt(1 - sen2t)) + (((n1 / n2) * cosI));
+    return t;
+}
+
+Vec difuse(Vec ip, double kd, Vec lightDir, Vec normal, Vec objColor) {
+    Vec difuse;
+    double prodEscalar = lightDir.dot(normal);
+    double aux = kd * prodEscalar;
+    difuse.x = ip.x * aux * objColor.x;
+    difuse.y = ip.y * aux * objColor.y;
+    difuse.z = ip.z * aux * objColor.z;
+
+    return difuse;
+};
+
+std::pair <LightObject*, Vec> sampleLightSource(Scene &s, Vec inters){
+        
+    int randomLightFace = rand() %2;
+    LightObject lightFace = s.lights[randomLightFace];
+    double alpha = rand() % 100;
+    double beta = rand() % 100;
+    double gama = rand() % 100;
+    double sum = alpha + beta + gama;
+    alpha = alpha / sum;
+    beta = beta / sum;
+    gama = gama / sum;
+
+    Vec v1 = lightFace.v0;
+    Vec v2 = lightFace.v1;
+    Vec v3 = lightFace.v2;
+
+    Vec lightRand;
+
+    lightRand.x = alpha * v1.x + beta * v2.x + gama * v3.x;
+    lightRand.y = v1.y;
+    lightRand.z = alpha * v1.z + beta * v2.z + gama * v3.z;
+
+    //Vec toLight = lightRand - inters;
+    //toLight = toLight.norm();
+    return {&lightFace, lightRand};
+};
+
+
+
 //Classes e funções para calcular Path Tracing
-LightObject* hitLight(Ray& ray, std::vector<LightObject>& lights){
+std::pair<LightObject*, Vec> hitLight(Ray ray, std::vector<LightObject>& lights){
     for(auto&& light: lights){
-        if (light.intersect(ray)){
-            return &light;
+        auto p = light.intersect(ray);
+        if (p.first > 1){
+            return {&light, p.second};
         }
     }
-    return nullptr;
+    return {nullptr, Vec()};
 }
 
-Object* hitSomething(Ray& ray, std::vector<Object>& objects){
+std::pair<Object*,Vec> hitSomething(Ray ray, std::vector<Object>& objects){
     for(auto&& object: objects){
-        if (object.intersect(ray)){
-            return &object;
+        auto p = object.intersect(ray);
+        if (p.first > 1){
+            return {&object, p.second};
         }
     }
-    return nullptr;
+    return {nullptr, Vec()};
 }
 
-Vec tracePath(Scene& s, Ray& ray) {
-    LightObject* lightTarget = hitLight(ray, s.lights);
-    Object* objectTarget = hitSomething(ray, s.objects);
-    
-    if (lightTarget != nullptr){
-        std::cout<<"Bateu na luz"<< std::endl;
-        Vec lightColor = lightTarget -> color;
-        return lightColor;
-    }
-    else if (objectTarget != nullptr){
-        std::cout<<"Bateu num objeto"<<std::endl;
-        Vec objectColor = objectTarget -> color;
-        return objectColor;
-    }
-    else{
-        std::cout<<"vacuo"<<std::endl;
+bool shadowRay(Scene& scene, Vec point) {
+    //bool retorno = false;
+    //LightObject* lightTarget = hitLight(ray, scene.lights).first;
+    auto lightRand = sampleLightSource(scene, point).second;
+    auto rayToLight = (lightRand - point).norm();
+    auto p2 = hitSomething(Ray(point, rayToLight), scene.objects);
+    Object* objectTarget = p2.first;
+    return (objectTarget != nullptr);
+}
+
+Vec tracePath(Scene& s, Ray& ray, int depth) {
+    // checkar se depth > MAX: return vec();
+    if(depth > MAX_DEPTH) return Vec(); // return neutral color
+
+
+    // Achar primeira colisão
+    auto p1 = hitLight(ray, s.lights);
+    LightObject* lightTarget = p1.first;
+    auto p2 = hitSomething(ray, s.objects);
+    Object* objectTarget = p2.first;
+
+    if (lightTarget != nullptr){ 
+        // Retorna cor da luz se nenhum objeto faz sombra
+        if(objectTarget != nullptr){
+            auto light_dist  = (ray.origin - p1.second).length();
+            auto object_dist  = (ray.origin - p2.second).length();
+            if(light_dist < object_dist) return lightTarget->color; 
+        }else return lightTarget->color;
+    }  
+    if (objectTarget == nullptr)
+        // Caso não tenha colisão retorna background
         return s.background_color;
-    }
+
+    // propriedades do objeto que intersectou o raio
+    auto closest = objectTarget; // objeto
+    auto inters = p2.second; // ponto de intersecção
+    auto normal = objectTarget -> normal; // normal da face do obj 
+    // Fazendo sample da luz e pegando propriedades
+    auto p3 = sampleLightSource(s, inters); 
+    auto luz = p3.first; // light properties
+    auto lightRand = p3.second; // light point 
+    auto toLight = (lightRand - inters).norm(); // vector da colisão indo até direção a luz
+    
+    // propriedades phong
+    float ka = closest->ambient_coeff, kd = closest->diffuse_coeff, 
+          ks = closest->specular_coeff, kt = closest->transparent_coeff;
+
+    // ---------------------------color calculation----------------------------
+    // Rambiente = Ia*kar
+    //float iA = s.ambient_intensity;
+    Vec ambiente = s.ambient_intensity * ka * closest->color;
+
+    // Rdifuso = Ip*kd(L.N)r
+    Vec difusa = difuse(luz->color, kd, toLight, normal, closest->color);
+
+    // Respecular = Ip*ks*(R.V)^n
+    Vec rVetor = (2 * toLight.dot(normal) * normal) - toLight; rVetor = rVetor.norm();
+    Vec vVetor = -1 * ray.direction; vVetor = vVetor.norm();
+    float aux = luz->intensity * ks * pow(rVetor.dot(vVetor), closest->specular_exponent);
+    Vec especular;
+    especular = luz->color * aux;
+
+    bool shadow = shadowRay(s, inters + bias * normal);
+
+    // A cor direta no ponto 
+    Vec corLocal = (shadow)? Vec(): ambiente+difusa+especular;
+    return corLocal;
 }
 
 std::vector<Vec> pathTracing(Scene& s){
@@ -542,20 +693,20 @@ std::vector<Vec> pathTracing(Scene& s){
     std::uniform_real_distribution<double> errorW(-s.camera.pixel_w/2, s.camera.pixel_w/2);// pixel.Res/2); // Range [0.0, 1.0)
     for (int y = 0; y < s.height; ++y){
         for (int x = 0; x < s.width; ++x){
-            //Vec pixel_result(0.0, 0.0, 0.0);
-            //for (int i = 0; i < s.num_samples; ++i){
+            Vec pixel_result(0.0, 0.0, 0.0);
+            for (int i = 0; i < s.num_samples; ++i){
+                Ray ray = s.camera.generateRay(x, y, errorW(gen), errorH(gen));
                 //auto pixelSample = s.camera.[i][j] + {dist(gen), dist(gen), 0.0};
                 //auto ray = Ray(s.camera.originGlobal, (pixelSample - s.camera.originGlobal).norm();
                 //Ray ray = s.camera.generateRay(x, y, errorW(gen), errorH(gen));
-                //pixel_result = pixel_result + tracePath(s, ray);
-            //}
-            Ray ray = s.camera.generateRay(x, y);
-            Vec pixel_result = tracePath(s, ray);
-            //pixel_result = pixel_result + s.background_color * s.ambient_intensity;
-            std::cout<<y;
-            image[y * s.width + x] = pixel_result;
+                pixel_result = pixel_result + tracePath(s, ray, 0);
+            }
+            pixel_result = pixel_result /s.num_samples;
+            //pixel_result = pixel_result.div(pixel_result + s.tonemapping); 
+            image[(s.height - y - 1) * s.width + x] = pixel_result;
         }
-     }
+    }
+     
     return image;
 }
 
